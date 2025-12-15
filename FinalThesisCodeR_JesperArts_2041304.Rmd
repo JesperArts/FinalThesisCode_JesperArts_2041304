@@ -1,0 +1,367 @@
+---
+title: "FinalThesisCodeR_JesperArts_2041304"
+author: "Jesper"
+date: "2025-12-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lmtest)
+library(sandwich)
+library(fixest)
+library(plm)
+library(modelsummary)
+
+```
+
+```{r}
+df <- readr::read_csv("FinalThesisData_JesperArts_2041304.csv")
+```
+
+```{r}
+firm_id <- "RIC"
+```
+
+```{r}
+model_1a_roa <- feols(
+  ROA ~ GenAIAdopt + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+model_1a_tq <- feols(
+  TobinsQ ~ GenAIAdopt + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+model_1b_roa <- feols(
+  ROA ~ GenAIIntensity + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+model_1b_tq <- feols(
+  TobinsQ ~ GenAIIntensity + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+models <- list(
+  "Model 1a – ROA (Adoption)"        = model_1a_roa,
+  "Model 1a – TobinsQ (Adoption)"    = model_1a_tq,
+  "Model 1b – ROA (Intensity)"       = model_1b_roa,
+  "Model 1b – TobinsQ (Intensity)"   = model_1b_tq
+)
+
+modelsummary(
+  models,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+```
+
+```{r}
+df <- df %>%
+  mutate(
+    # Center DC dimensions
+    Sensing_c      = scale(Sensing,      center = TRUE, scale = FALSE)[,1],
+    Seizing_c      = scale(Seizing,      center = TRUE, scale = FALSE)[,1],
+    Transforming_c = scale(Transforming, center = TRUE, scale = FALSE)[,1],
+    
+    # Center intensity (binary adoption doesn't need centering)
+    GenAIIntensity_c = scale(GenAIIntensity, center = TRUE, scale = FALSE)[,1]
+  )
+```
+
+```{r}
+# --- Model 2A: ROA, adoption x DC ---
+model_2a_roa <- feols(
+  ROA ~ GenAIAdopt * Sensing_c +
+        GenAIAdopt * Seizing_c +
+        GenAIAdopt * Transforming_c +
+        FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# --- Model 2A: Tobin's Q, adoption x DC ---
+model_2a_tq <- feols(
+  TobinsQ ~ GenAIAdopt * Sensing_c +
+            GenAIAdopt * Seizing_c +
+            GenAIAdopt * Transforming_c +
+            FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# --- Model 2B: ROA, intensity x DC ---
+model_2b_roa <- feols(
+  ROA ~ GenAIIntensity_c * Sensing_c +
+        GenAIIntensity_c * Seizing_c +
+        GenAIIntensity_c * Transforming_c +
+        FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# --- Model 2B: Tobin's Q, intensity x DC ---
+model_2b_tq <- feols(
+  TobinsQ ~ GenAIIntensity_c * Sensing_c +
+            GenAIIntensity_c * Seizing_c +
+            GenAIIntensity_c * Transforming_c +
+            FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+models_m2 <- list(
+  "2A – ROA (Adopt × DC)"      = model_2a_roa,
+  "2A – TobinsQ (Adopt × DC)"  = model_2a_tq,
+  "2B – ROA (Int × DC)"        = model_2b_roa,
+  "2B – TobinsQ (Int × DC)"    = model_2b_tq
+)
+
+modelsummary(
+  models_m2,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+```
+
+
+```{r}
+# Model 3A – Adopting GenAI × KnowledgeIndustry (ROA)
+model_3a_roa <- feols(
+  ROA ~ GenAIAdopt * KnowledgeIndustry +
+        FirmSize + FirmAge + Leverage + CapEx |
+        RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# Model 3A – Adoption × Industry (Tobin's Q)
+model_3a_tq <- feols(
+  TobinsQ ~ GenAIAdopt * KnowledgeIndustry +
+            FirmSize + FirmAge + Leverage + CapEx |
+            RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# Model 3B – GenAI Intensity × KnowledgeIndustry (ROA)
+model_3b_roa <- feols(
+  ROA ~ GenAIIntensity * KnowledgeIndustry +
+        FirmSize + FirmAge + Leverage + CapEx |
+        RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+# Model 3B – Intensity × Industry (Tobin's Q)
+model_3b_tq <- feols(
+  TobinsQ ~ GenAIIntensity * KnowledgeIndustry +
+            FirmSize + FirmAge + Leverage + CapEx |
+            RIC + YearQuarter,
+  cluster = "RIC",
+  data = df
+)
+
+models_m3 <- list(
+  "3A – ROA (Adopt × Industry)"       = model_3a_roa,
+  "3A – TobinsQ (Adopt × Industry)"   = model_3a_tq,
+  "3B – ROA (Intensity × Industry)"   = model_3b_roa,
+  "3B – TobinsQ (Intensity × Industry)" = model_3b_tq
+)
+
+modelsummary(
+  models_m3,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+```
+
+```{r}
+df2 <- df %>% 
+  dplyr::filter(Year >= 2023)
+```
+
+```{r}
+model_1a_roa2 <- feols(
+  ROA ~ GenAIAdopt + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+
+model_1a_tq2 <- feols(
+  TobinsQ ~ GenAIAdopt + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+
+model_1b_roa2 <- feols(
+  ROA ~ GenAIIntensity + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+
+model_1b_tq2 <- feols(
+  TobinsQ ~ GenAIIntensity + FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+
+models2 <- list(
+  "Model 1a – ROA (Adoption)2"        = model_1a_roa2,
+  "Model 1a – TobinsQ (Adoption)2"    = model_1a_tq2,
+  "Model 1b – ROA (Intensity)2"       = model_1b_roa2,
+  "Model 1b – TobinsQ (Intensity)2"   = model_1b_tq2
+)
+
+modelsummary(
+  models2,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+
+
+```
+
+```{r}
+df2 <- df2 %>%
+  mutate(
+    # Center DC dimensions
+    Sensing_c      = scale(Sensing,      center = TRUE, scale = FALSE)[,1],
+    Seizing_c      = scale(Seizing,      center = TRUE, scale = FALSE)[,1],
+    Transforming_c = scale(Transforming, center = TRUE, scale = FALSE)[,1],
+    
+    # Center intensity (binary adoption doesn't need centering)
+    GenAIIntensity_c = scale(GenAIIntensity, center = TRUE, scale = FALSE)[,1]
+  )
+
+```
+
+
+```{r}
+# --- Model 2A: ROA, adoption x DC ---
+model_2a_roa2 <- feols(
+  ROA ~ GenAIAdopt * Sensing_c +
+        GenAIAdopt * Seizing_c +
+        GenAIAdopt * Transforming_c +
+        FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# --- Model 2A: Tobin's Q, adoption x DC ---
+model_2a_tq2 <- feols(
+  TobinsQ ~ GenAIAdopt * Sensing_c +
+            GenAIAdopt * Seizing_c +
+            GenAIAdopt * Transforming_c +
+            FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# --- Model 2B: ROA, intensity x DC ---
+model_2b_roa2 <- feols(
+  ROA ~ GenAIIntensity_c * Sensing_c +
+        GenAIIntensity_c * Seizing_c +
+        GenAIIntensity_c * Transforming_c +
+        FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# --- Model 2B: Tobin's Q, intensity x DC ---
+model_2b_tq2 <- feols(
+  TobinsQ ~ GenAIIntensity_c * Sensing_c +
+            GenAIIntensity_c * Seizing_c +
+            GenAIIntensity_c * Transforming_c +
+            FirmSize + FirmAge + Leverage + CapEx | RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+models_m22 <- list(
+  "2A – ROA (Adopt × DC)2"      = model_2a_roa2,
+  "2A – TobinsQ (Adopt × DC)2"  = model_2a_tq2,
+  "2B – ROA (Int × DC)2"        = model_2b_roa2,
+  "2B – TobinsQ (Int × DC)2"    = model_2b_tq2
+)
+
+modelsummary(
+  models_m22,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+
+```
+
+
+```{r}
+# Model 3A – Adopting GenAI × KnowledgeIndustry (ROA)
+model_3a_roa2 <- feols(
+  ROA ~ GenAIAdopt * KnowledgeIndustry +
+        FirmSize + FirmAge + Leverage + CapEx |
+        RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# Model 3A – Adoption × Industry (Tobin's Q)
+model_3a_tq2 <- feols(
+  TobinsQ ~ GenAIAdopt * KnowledgeIndustry +
+            FirmSize + FirmAge + Leverage + CapEx |
+            RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# Model 3B – GenAI Intensity × KnowledgeIndustry (ROA)
+model_3b_roa2 <- feols(
+  ROA ~ GenAIIntensity * KnowledgeIndustry +
+        FirmSize + FirmAge + Leverage + CapEx |
+        RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+# Model 3B – Intensity × Industry (Tobin's Q)
+model_3b_tq2 <- feols(
+  TobinsQ ~ GenAIIntensity * KnowledgeIndustry +
+            FirmSize + FirmAge + Leverage + CapEx |
+            RIC + YearQuarter,
+  cluster = "RIC",
+  data = df2
+)
+
+
+models_m32 <- list(
+  "3A – ROA (Adopt × Industry)2"       = model_3a_roa2,
+  "3A – TobinsQ (Adopt × Industry)2"   = model_3a_tq2,
+  "3B – ROA (Intensity × Industry)2"   = model_3b_roa2,
+  "3B – TobinsQ (Intensity × Industry)2" = model_3b_tq2
+)
+
+modelsummary(
+  models_m32,
+  stars = TRUE,
+  statistic = "({std.error})",
+  gof_omit = "IC|Log|F|Adj|Pseudo"
+)
+
+```
+
